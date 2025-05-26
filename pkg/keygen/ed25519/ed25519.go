@@ -3,8 +3,8 @@ package ed25519
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/pem"
+	"io"
 
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/keygen/ed25519/edkey"
 )
@@ -22,18 +22,7 @@ func New() *ed {
 }
 
 func (s *ed) Generate() {
-	s.publicKey, s.privateKey, _ = ed25519.GenerateKey(rand.Reader)
-	s.updatePubkey()
-}
-
-func (s *ed) updatePubkey() {
-	var bin [51]byte
-	copy(bin[0:19], ed25519BinaryHeader)
-	copy(bin[19:51], s.publicKey)
-
-	copy(s.pubKeyBuf[0:12], "ssh-ed25519 ")
-	base64.StdEncoding.Encode(s.pubKeyBuf[12:80], bin[:])
-	s.pubKeyBuf[80] = '\n'
+	s.publicKey, s.privateKey, _ = generateKey()
 }
 
 func (s *ed) SSHPubkey() []byte {
@@ -43,11 +32,21 @@ func (s *ed) SSHPubkey() []byte {
 func (s *ed) SSHPrivkey() []byte {
 	privDER := edkey.MarshalED25519PrivateKey(s.privateKey)
 	b := pem.Block{
-		Type:    "OPENSSH PRIVATE KEY",
-		Headers: nil,
-		Bytes:   privDER,
+		Type:  "OPENSSH PRIVATE KEY",
+		Bytes: privDER,
 	}
 	// Private key in PEM format
 	privatePEM := pem.EncodeToMemory(&b)
 	return privatePEM
+}
+
+func generateKey() (ed25519.PublicKey, ed25519.PrivateKey, error) {
+	seed := make([]byte, ed25519.SeedSize)
+	if _, err := io.ReadFull(rand.Reader, seed); err != nil {
+		return nil, nil, err
+	}
+
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	publicKey := ed25519.PublicKey(privateKey[32:])
+	return publicKey, privateKey, nil
 }

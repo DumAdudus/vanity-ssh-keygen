@@ -1,6 +1,7 @@
 package ignorecaseed25519
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/keygen"
@@ -20,32 +21,12 @@ func (m *ignorecaseEd25519Matcher) SetMatchString(matchString string) {
 
 func (m *ignorecaseEd25519Matcher) Match(s keygen.SSHKey) bool {
 	pubK := s.SSHPubkey()
-	if len(pubK) < 37 {
-		return false
-	}
-	// The public key is 81 bytes long. The base64 part starts at index 37.
-	return containsCaseInsensitive(pubK[37:], m.matchString)
-}
-
-func containsCaseInsensitive(b, substr []byte) bool {
-	if len(substr) == 0 {
-		return true
-	}
-	for i := 0; i <= len(b)-len(substr); i++ {
-		match := true
-		for j := range substr {
-			c := b[i+j]
-			if c >= 'A' && c <= 'Z' {
-				c += 'a' - 'A'
-			}
-			if c != substr[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return true
-		}
-	}
-	return false
+	/*
+	   The public key is 80 bytes long, the first 37 bytes are the key type and the key length, the last 43 bytes are the key itself
+	   https://crypto.stackexchange.com/questions/44584/ed25519-ssh-public-key-is-always-80-characters-long
+	   Example public key:
+	   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINyqBBX74InG199sb0Dg+5+vhuHbBimaTtiJb0+OGbzJ
+	   |   Key type and length             || key                                     |
+	*/
+	return bytes.Contains(bytes.ToLower(keygen.EffectiveED25519PubKey(pubK)), m.matchString)
 }

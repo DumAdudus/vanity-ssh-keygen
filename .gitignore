@@ -3,3 +3,5 @@ dist/
 run.sh
 pprof
 /mat*
+.vscode/
+*_ed25519*

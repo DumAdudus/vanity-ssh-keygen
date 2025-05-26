@@ -35,6 +35,9 @@ import (
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/matcher"
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/matcher/ignorecase"
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/matcher/ignorecaseed25519"
+	"github.com/Mattias-/vanity-ssh-keygen/pkg/matcher/prefixed25519"
+	"github.com/Mattias-/vanity-ssh-keygen/pkg/matcher/regexed25519"
+	"github.com/Mattias-/vanity-ssh-keygen/pkg/matcher/suffixed25519"
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/workerpool"
 )
 
@@ -104,6 +107,9 @@ func (a *app) addShutdownFunc(fn func(context.Context) error) {
 func main() {
 	matcher.RegisterMatcher("ignorecase", ignorecase.New())
 	matcher.RegisterMatcher("ignorecase-ed25519", ignorecaseed25519.New())
+	matcher.RegisterMatcher("prefix-ed25519", prefixed25519.New())
+	matcher.RegisterMatcher("suffix-ed25519", suffixed25519.New())
+	matcher.RegisterMatcher("regex-ed25519", regexed25519.New())
 	keygen.RegisterKeygen("ed25519", func() keygen.SSHKey { return ed25519.New() })
 	keygen.RegisterKeygen("rsa-2048", func() keygen.SSHKey { return rsa.New(2048) })
 	keygen.RegisterKeygen("rsa-4096", func() keygen.SSHKey { return rsa.New(4096) })
