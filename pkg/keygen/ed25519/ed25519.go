@@ -7,14 +7,13 @@ import (
 	"io"
 
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/keygen/ed25519/edkey"
+	"golang.org/x/crypto/ssh"
 )
-
-var ed25519BinaryHeader = []byte{0, 0, 0, 11, 's', 's', 'h', '-', 'e', 'd', '2', '5', '5', '1', '9', 0, 0, 0, 32}
 
 type ed struct {
 	publicKey  ed25519.PublicKey
 	privateKey ed25519.PrivateKey
-	pubKeyBuf  [81]byte
+	pubKeyBuf  []byte
 }
 
 func New() *ed {
@@ -23,13 +22,25 @@ func New() *ed {
 
 func (s *ed) Generate() {
 	s.publicKey, s.privateKey, _ = generateKey()
+	s.updatePubkey()
+}
+
+func (s *ed) updatePubkey() {
+	publicKey, _ := ssh.NewPublicKey(s.publicKey)
+	s.pubKeyBuf = ssh.MarshalAuthorizedKey(publicKey)
 }
 
 func (s *ed) SSHPubkey() []byte {
-	return s.pubKeyBuf[:]
+	return s.pubKeyBuf
 }
 
 func (s *ed) SSHPrivkey() []byte {
+	b, _ := ssh.MarshalPrivateKey(s.privateKey, "")
+	privatePEM := pem.EncodeToMemory(b)
+	return privatePEM
+}
+
+func (s *ed) SSHPrivkeyOld() []byte {
 	privDER := edkey.MarshalED25519PrivateKey(s.privateKey)
 	b := pem.Block{
 		Type:  "OPENSSH PRIVATE KEY",
