@@ -5,42 +5,57 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"io"
+	"sync"
+	_ "unsafe"
 
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/keygen/ed25519/edkey"
 	"golang.org/x/crypto/ssh"
 )
 
-type ed struct {
-	publicKey  ed25519.PublicKey
-	privateKey ed25519.PrivateKey
-	pubKeyBuf  []byte
+var (
+	seedPool = sync.Pool{
+		New: func() any {
+			seed := make([]byte, ed25519.SeedSize)
+			return &seed
+		},
+	}
+	privKeyPool = sync.Pool{
+		New: func() any {
+			privKey := make([]byte, ed25519.PrivateKeySize)
+			return &privKey
+		},
+	}
+)
+
+type Ed struct {
+	publicKey     ed25519.PublicKey
+	privateKey    ed25519.PrivateKey
+	authorizedKey []byte
+	privKeyBuf    *[]byte
 }
 
-func New() *ed {
-	return &ed{}
+func New() *Ed {
+	return &Ed{
+		privKeyBuf: privKeyPool.Get().(*[]byte),
+	}
 }
 
-func (s *ed) Generate() {
-	s.publicKey, s.privateKey, _ = generateKey()
+func (s *Ed) Generate() {
+	s.generateKey()
 	s.updatePubkey()
 }
 
-func (s *ed) updatePubkey() {
-	publicKey, _ := ssh.NewPublicKey(s.publicKey)
-	s.pubKeyBuf = ssh.MarshalAuthorizedKey(publicKey)
+func (s *Ed) SSHPubkey() []byte {
+	return s.authorizedKey
 }
 
-func (s *ed) SSHPubkey() []byte {
-	return s.pubKeyBuf
-}
-
-func (s *ed) SSHPrivkey() []byte {
+func (s *Ed) SSHPrivkey() []byte {
 	b, _ := ssh.MarshalPrivateKey(s.privateKey, "")
 	privatePEM := pem.EncodeToMemory(b)
 	return privatePEM
 }
 
-func (s *ed) SSHPrivkeyOld() []byte {
+func (s *Ed) SSHPrivkeyOld() []byte {
 	privDER := edkey.MarshalED25519PrivateKey(s.privateKey)
 	b := pem.Block{
 		Type:  "OPENSSH PRIVATE KEY",
@@ -51,13 +66,28 @@ func (s *ed) SSHPrivkeyOld() []byte {
 	return privatePEM
 }
 
-func generateKey() (ed25519.PublicKey, ed25519.PrivateKey, error) {
-	seed := make([]byte, ed25519.SeedSize)
+func (s *Ed) ReleaseBuf() {
+	privKeyPool.Put(s.privKeyBuf)
+}
+
+func (s *Ed) updatePubkey() {
+	publicKey, _ := ssh.NewPublicKey(s.publicKey)
+	s.authorizedKey = ssh.MarshalAuthorizedKey(publicKey)
+}
+
+func (s *Ed) generateKey() {
+	seedBuf := seedPool.Get().(*[]byte)
+	defer seedPool.Put(seedBuf)
+	seed := *seedBuf
 	if _, err := io.ReadFull(rand.Reader, seed); err != nil {
-		return nil, nil, err
+		return
 	}
 
-	privateKey := ed25519.NewKeyFromSeed(seed)
+	privateKey := *s.privKeyBuf
+	newKeyFromSeed(privateKey, seed)
 	publicKey := ed25519.PublicKey(privateKey[32:])
-	return publicKey, privateKey, nil
+	s.publicKey, s.privateKey = publicKey, privateKey
 }
+
+//go:linkname newKeyFromSeed crypto/ed25519.newKeyFromSeed
+func newKeyFromSeed(privateKey, seed []byte)

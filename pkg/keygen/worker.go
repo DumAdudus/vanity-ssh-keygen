@@ -1,6 +1,10 @@
 package keygen
 
-import "context"
+import (
+	"context"
+
+	"github.com/Mattias-/vanity-ssh-keygen/pkg/keygen/ed25519"
+)
 
 type Worker struct {
 	results chan SSHKey
@@ -23,6 +27,9 @@ func (w *Worker) Run(ctx context.Context) {
 		if w.Matchfunc(k) {
 			// A result was found!
 			break
+		}
+		if ed, ok := k.(*ed25519.Ed); ok {
+			ed.ReleaseBuf()
 		}
 	}
 	select {
