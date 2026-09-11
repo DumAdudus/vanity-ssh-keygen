@@ -7,6 +7,7 @@ require (
 	github.com/alecthomas/kong v1.16.1
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.4.2
+	github.com/oasisprotocol/curve25519-voi v0.0.0-20251114093237-2ab5a27a1729
 	github.com/wasilibs/go-re2 v1.13.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1
 	go.opentelemetry.io/otel v1.46.0

@@ -9,6 +9,7 @@ import (
 	_ "unsafe"
 
 	"github.com/Mattias-/vanity-ssh-keygen/pkg/keygen/ed25519/edkey"
+	_ "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -25,6 +26,8 @@ var (
 			return &privKey
 		},
 	}
+
+	UseVoi = false
 )
 
 type Ed struct {
@@ -75,6 +78,12 @@ func (s *Ed) updatePubkey() {
 	s.authorizedKey = ssh.MarshalAuthorizedKey(publicKey)
 }
 
+//go:linkname newKeyFromSeed crypto/ed25519.newKeyFromSeed
+func newKeyFromSeed(privateKey, seed []byte)
+
+//go:linkname newKeyFromSeedVoi github.com/oasisprotocol/curve25519-voi/primitives/ed25519.newKeyFromSeed
+func newKeyFromSeedVoi(privateKey, seed []byte)
+
 func (s *Ed) generateKey() {
 	seedBuf := seedPool.Get().(*[]byte)
 	defer seedPool.Put(seedBuf)
@@ -84,10 +93,11 @@ func (s *Ed) generateKey() {
 	}
 
 	privateKey := *s.privKeyBuf
-	newKeyFromSeed(privateKey, seed)
+	if UseVoi {
+		newKeyFromSeedVoi(privateKey, seed)
+	} else {
+		newKeyFromSeed(privateKey, seed)
+	}
 	publicKey := ed25519.PublicKey(privateKey[32:])
 	s.publicKey, s.privateKey = publicKey, privateKey
 }
-
-//go:linkname newKeyFromSeed crypto/ed25519.newKeyFromSeed
-func newKeyFromSeed(privateKey, seed []byte)

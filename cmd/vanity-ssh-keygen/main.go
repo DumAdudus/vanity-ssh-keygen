@@ -75,6 +75,7 @@ type config struct {
 	Output           string           `short:"o" help:"Output format. One of: pem-files|json-file." default:"pem-files"`
 	OutputDir        string           `help:"Output directory." default:"./" type:"existingdir"`
 	StatsLogInterval time.Duration    `help:"Statistics will be printed at this interval, set to 0 to disable" default:"2s"`
+	Voi              bool             `help:"Use curve25519-voi for faster Ed25519 key generation" default:"false"`
 }
 
 type app struct {
@@ -129,7 +130,8 @@ func main() {
 		"default_matcher": matcher.Names()[0],
 	})
 
-	ctx, stop := signal.NotifyContext(context.Background(),
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
 		os.Interrupt,
 		os.Kill,
 		syscall.SIGTERM,
@@ -147,7 +149,8 @@ func main() {
 			slog.Error("Could not create metric exporter", "error", err)
 			os.Exit(1)
 		}
-		res := resource.NewWithAttributes(semconv.SchemaURL,
+		res := resource.NewWithAttributes(
+			semconv.SchemaURL,
 			semconv.ServiceName(serviceName),
 			semconv.ServiceVersion(version),
 			semconv.ServiceInstanceID(instanceID),
@@ -180,9 +183,11 @@ func main() {
 		provider := log.NewLoggerProvider(
 			log.WithProcessor(
 				log.NewBatchProcessor(exporter),
-			))
+			),
+		)
 		global.SetLoggerProvider(provider)
-		slog.SetDefault(otelslog.NewLogger(serviceName,
+		slog.SetDefault(otelslog.NewLogger(
+			serviceName,
 			otelslog.WithAttributes(
 				semconv.ServiceVersion(version),
 				semconv.ServiceInstanceID(instanceID),
@@ -205,7 +210,7 @@ func main() {
 	}
 
 	if a.config.Profile {
-		f, err := os.Create("./pprof")
+		f, err := os.Create("./cpu_" + time.Now().Format(time.RFC3339) + ".pprof")
 		if err != nil {
 			slog.Error("Could not create profile file", "error", err)
 			os.Exit(1)
@@ -252,6 +257,8 @@ func main() {
 			return profiler.Stop()
 		})
 	}
+
+	ed25519.UseVoi = a.config.Voi
 
 	m, ok := matcher.Get(a.config.Matcher)
 	if !ok {
@@ -327,15 +334,17 @@ func (a *app) outputPEM(elapsed time.Duration, result keygen.SSHKey) {
 	slog.Info("Found matching public key", "pubkey", string(pubK))
 	outDir := a.config.OutputDir + "/"
 
-	privkeyFileName := outDir + a.config.MatchString
-	pubkeyFileName := outDir + a.config.MatchString + ".pub"
+	timeSuffix := time.Now().Format(time.RFC3339)
+	privkeyFileName := outDir + a.config.MatchString + "_" + timeSuffix
+	pubkeyFileName := privkeyFileName + ".pub"
 	if err := os.WriteFile(privkeyFileName, privK, 0o600); err != nil {
 		slog.Error("Could not write private key file", "error", err)
 	}
 	if err := os.WriteFile(pubkeyFileName, pubK, 0o600); err != nil {
 		slog.Error("Could not write public key file", "error", err)
 	}
-	slog.Info("Result keypair stored",
+	slog.Info(
+		"Result keypair stored",
 		"privkey_file", privkeyFileName,
 		"pubkey_file", pubkeyFileName,
 		slog.Duration("elapsed", elapsed),
@@ -382,7 +391,8 @@ func versionString() string {
 		}
 	}
 
-	return fmt.Sprintf("%s commit:%s date:%s goVersion:%s platform:%s/%s",
+	return fmt.Sprintf(
+		"%s commit:%s date:%s goVersion:%s platform:%s/%s",
 		version,
 		commit,
 		date,
